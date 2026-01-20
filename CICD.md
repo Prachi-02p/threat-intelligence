@@ -1,48 +1,47 @@
-# CI/CD Pipeline Guide – Threat Intelligence Dashboard
+ CI/CD Pipeline Guide – Threat Intelligence Dashboard
 
-This document explains the Continuous Integration and Continuous Deployment (CI/CD) setup used in the **Threat Intelligence Dashboard** project.
+This document describes the Continuous Integration and Continuous Deployment (CI/CD) setup used in the **Threat Intelligence Dashboard** project.
 
-It is intended to help readers understand:
-- How CI/CD is structured in this repository
-- Which tools are used and why
+It is intended to help contributors and reviewers understand:
+- How CI/CD is organized in this repository
+- Which tools are involved
 - How the pipeline behaves during build and deployment
 
-This guide **does not explain how to create the pipeline step-by-step**.  
-It focuses on **understanding and maintaining** the CI/CD implementation.
+This document does **not** explain how to create the CI/CD pipeline step by step.
 
 ---
 
-## 🔁 What CI/CD Means in This Project
+## 🔁 CI/CD Overview
 
 ### Continuous Integration (CI)
-In this project, CI ensures that:
+The CI process ensures that:
 - The latest code is always fetched from GitHub
-- Backend and frontend Docker images are built in a consistent way
-- Build errors are detected early in the pipeline
+- Backend and frontend Docker images are built consistently
+- Build issues are detected early
 
 ### Continuous Deployment (CD)
-CD ensures that:
+The CD process ensures that:
 - The application is deployed using Docker Compose
-- Old containers are safely stopped
-- New containers are started with the latest code
+- Existing containers are replaced safely
+- The latest version of the application is always running
 
 ---
 
-## 🧰 Tools and Technologies Used
+## 🧰 Tools Used
 
 | Tool | Purpose |
-|---|---|
-| GitHub | Source code management |
-| Jenkins | CI/CD automation |
+|-----|--------|
+| GitHub | Source code repository |
+| Jenkins | CI/CD automation server |
 | Docker | Containerization |
-| Docker Compose | Multi-container deployment |
-| FastAPI | Backend service |
-| React | Frontend application |
+| Docker Compose | Multi-container orchestration |
+| FastAPI | Backend API |
+| React | Frontend UI |
 | MongoDB | Database |
 
 ---
 
-## 🏗️ High-Level CI/CD Flow
+## 🏗️ CI/CD Flow
 
 Code Push to GitHub
 ↓
@@ -61,12 +60,12 @@ Copy code
 
 ## 📁 Required Files for CI/CD
 
-For the CI/CD pipeline to function correctly, **the following files must exist in the GitHub repository**.
+For the CI/CD pipeline to function correctly, **all required files must exist in the GitHub repository**.
 
 > Jenkins works only with files present in GitHub.  
 > Local-only files are ignored.
 
-### 🔹 Repository Structure (Relevant to CI/CD)
+### Repository Structure (Relevant to CI/CD)
 
 threat-intelligence/
 ├── backend/
@@ -87,53 +86,48 @@ Copy code
 
 ---
 
+## 📄 File Responsibilities
 
-### 🔹 File Purpose Explanation
+**docker-compose.yml**  
+Defines all services (backend, frontend, database), networking, ports, and dependencies.  
+This file is used directly by Jenkins during deployment.
 
-#### `docker-compose.yml`
-- Defines all services (backend, frontend, database)
-- Specifies ports, dependencies, and environment files
-- Used by Jenkins during deployment
+**.env.example**  
+Contains placeholder environment variables.  
+This file is committed to GitHub and is used by Jenkins to generate the `.env` file at runtime.
 
-#### `.env.example`
-- Contains **placeholder environment variables**
-- Committed to GitHub
-- Used by Jenkins to generate the `.env` file at runtime
+**.env**  
+Not committed to GitHub.  
+Generated dynamically during the pipeline execution to avoid exposing secrets.
 
-#### `.env`
-- **Not committed to GitHub**
-- Created dynamically during the pipeline execution
-- Prevents secrets from being exposed
-
-#### `Jenkinsfile`
-- Defines the CI/CD pipeline logic
-- Stored in the repository root
-- Jenkins reads this file using **Pipeline from SCM**
+**Jenkinsfile**  
+Contains the complete CI/CD pipeline logic.  
+Jenkins reads this file using **Pipeline from SCM**, ensuring the pipeline is version-controlled.
 
 ---
 
 ## 🔐 Environment Variable Strategy
 
-This project follows a **secure environment variable strategy**:
+The project follows a secure and standard environment handling approach:
 
-- `.env` → ignored by Git
-- `.env.example` → committed to GitHub
-- Jenkins copies `.env.example` → `.env` during deployment
+- `.env` is ignored by Git
+- `.env.example` is committed to GitHub
+- Jenkins creates `.env` dynamically during deployment
 
-Benefits:
-- No secrets in source control
-- Clean and repeatable deployments
-- Industry-standard DevOps practice
+This approach:
+- Prevents sensitive data leakage
+- Enables clean CI/CD execution
+- Follows industry DevOps best practices
 
 ---
 
-## ⚙️ Pipeline Behavior (Conceptual)
+## ⚙️ Pipeline Behavior (High Level)
 
 During execution, the pipeline performs the following actions:
 
 1. Cleans the Jenkins workspace
 2. Clones the GitHub repository
-3. Prepares the environment file
+3. Prepares environment variables
 4. Builds Docker images
 5. Stops any running containers
 6. Deploys the application using Docker Compose
@@ -142,69 +136,60 @@ The pipeline stops immediately if any stage fails.
 
 ---
 
-## 📜 Jenkins Configuration Strategy
-
-- The pipeline is defined inside the repository using a `Jenkinsfile`
-- Jenkins is configured with **Pipeline from SCM**
-- This keeps CI/CD logic version-controlled
-- Any pipeline change requires a Git commit
-
----
-
 ## ▶️ Pipeline Trigger
 
 Current trigger:
 - Manual execution from Jenkins
 
-Supported future triggers:
+Future enhancements may include:
 - GitHub Webhooks (auto-deploy on push)
-- Scheduled runs
+- Scheduled builds
 - Multi-branch pipelines
 
 ---
 
-## 🚨 Common CI/CD Issues and Causes
+## 🚨 Common CI/CD Issues
 
-| Issue | Likely Cause |
-|---|---|
-| `.env not found` | `.env.example` missing from GitHub |
+| Issue | Cause |
+|-----|------|
+| `.env not found` | `.env.example` missing in GitHub |
 | Docker daemon error | Docker Desktop not running |
 | Build failure | Dependency or Dockerfile issue |
-| Port conflict | Existing containers already running |
+| Port conflict | Existing containers running |
 
-All errors can be diagnosed using Jenkins **Console Output**.
+All issues can be analyzed using Jenkins **Console Output**.
 
 ---
 
 ## 🔒 Security Notes
 
-- Sensitive values are never committed to GitHub
-- Jenkins generates runtime configuration files
-- Access to Jenkins should be restricted in real environments
-- Additional security scanning can be added in future iterations
+- Secrets are never committed to GitHub
+- Runtime configuration is handled by Jenkins
+- Jenkins access should be restricted in real environments
+- Additional security checks can be added in future
 
 ---
 
-## 🚀 Possible Enhancements
+## 🚀 Future Improvements
 
-- GitHub Webhook integration
-- Docker image tagging and versioning
-- Security scans (Trivy, OWASP tools)
-- Deployment to cloud or Kubernetes
+- GitHub webhook integration
+- Docker image versioning
+- Security scanning (Trivy, OWASP)
+- Cloud or Kubernetes deployment
 - Monitoring and alerting integration
 
 ---
 
 ## ✅ Summary
 
-This CI/CD pipeline provides:
+This CI/CD setup provides:
 - Automated builds
 - Reliable deployments
 - Secure environment handling
 - Version-controlled pipeline logic
 
-The setup reflects real-world DevOps practices and is designed to be extendable for production use.
+The pipeline reflects real-world DevOps practices and is designed to scale with future requirements.
 
 ---
 
-**CI/CD is a continuous improvement process, not a one-time setup.**
+**CI/CD is a continuous improvement process, not a one-time configuration.**
