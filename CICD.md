@@ -1,5 +1,3 @@
-
-```md
 # CI/CD Pipeline Guide – Threat Intelligence Dashboard
 
 This document explains the Continuous Integration and Continuous Deployment (CI/CD) setup used in the **Threat Intelligence Dashboard** project.
@@ -46,8 +44,6 @@ CD ensures that:
 
 ## 🏗️ High-Level CI/CD Flow
 
-```
-
 Code Push to GitHub
 ↓
 Jenkins
@@ -58,7 +54,8 @@ Docker Compose Deployment
 ↓
 Application Running
 
-```
+yaml
+Copy code
 
 ---
 
@@ -71,25 +68,25 @@ For the CI/CD pipeline to function correctly, **the following files must exist i
 
 ### 🔹 Repository Structure (Relevant to CI/CD)
 
-```
-
 threat-intelligence/
 ├── backend/
-│   ├── Dockerfile        # Builds the FastAPI backend image
-│   ├── main.py
-│   └── requirements.txt
+│ ├── Dockerfile # Builds the FastAPI backend image
+│ ├── main.py
+│ └── requirements.txt
 │
 ├── frontend/
-│   ├── Dockerfile        # Builds the React frontend image
-│   └── package.json
+│ ├── Dockerfile # Builds the React frontend image
+│ └── package.json
 │
-├── docker-compose.yml    # Defines all application services
-├── .env.example          # Template for environment variables
-└── Jenkinsfile           # CI/CD pipeline definition
+├── docker-compose.yml # Defines all application services
+├── .env.example # Template for environment variables
+└── Jenkinsfile # CI/CD pipeline definition
 
-```
+yaml
+Copy code
 
 ---
+
 
 ### 🔹 File Purpose Explanation
 
@@ -211,6 +208,3 @@ The setup reflects real-world DevOps practices and is designed to be extendable 
 ---
 
 **CI/CD is a continuous improvement process, not a one-time setup.**
-```
-
-
