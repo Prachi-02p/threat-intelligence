@@ -13,7 +13,7 @@ function App() {
         
         {/* Navbar */}
         <header className="bg-white shadow p-4 flex flex-wrap items-center justify-between border-b">
-          <h1 className="text-xl font-bold text-gray-800">🧠 Threat Intelligence</h1>
+          <h1 className="text-xl font-bold text-gray-800">Threat Intelligence - Dashboard</h1>
 
           <nav className="flex gap-4 mt-2 sm:mt-0">
             <NavLink 
