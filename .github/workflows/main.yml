@@ -14,7 +14,112 @@ concurrency:
   group: pr-${{ github.ref }}
   cancel-in-progress: true
 
+jobs:name: pr-quality-security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write   # REQUIRED for SARIF upload
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  pr-checks:
+    name: PR Quality & Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # -------------------------
+      # Checkout repository
+      # -------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -------------------------
+      # Tests & lint (placeholder)
+      # -------------------------
+      - name: Run tests and lint
+        run: |
+          echo "Running unit tests"
+          echo "Running lint checks"
+
+      # -------------------------
+      # Generate VALID SARIF
+      # -------------------------
+      - name: Generate SARIF report
+        run: |
+          mkdir -p reports
+          cat <<EOF > reports/security.sarif
+          {
+            "version": "2.1.0",
+            "\$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Demo Security Scanner",
+                    "informationUri": "https://example.com",
+                    "rules": [
+                      {
+                        "id": "HIGH001",
+                        "name": "Demo High Issue",
+                        "shortDescription": {
+                          "text": "Demo high severity issue"
+                        }
+                      },
+                      {
+                        "id": "MEDIUM001",
+                        "name": "Demo Medium Issue",
+                        "shortDescription": {
+                          "text": "Demo medium severity issue"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "MEDIUM001",
+                    "level": "warning",
+                    "message": {
+                      "text": "This is a medium severity issue"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      # -------------------------
+      # Upload SARIF to GitHub
+      # -------------------------
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: reports/security.sarif
+
+      # -------------------------
+      # Enforce severity policy
+      # -------------------------
+      - name: Enforce severity policy
+        run: |
+          ERRORS=$(jq '.runs[].results[] | select(.level=="error")' reports/security.sarif | wc -l)
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "❌ High / Critical issues found. Failing pipeline."
+            exit 1
+          else
+            echo "⚠️ No high or critical issues. Medium issues are warnings only."
+          fi
+
   pr-checks:
     name: PR Quality & Security Checks
     runs-on: ubuntu-latest
