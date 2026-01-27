@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  security-events: write
+  security-events: write   # Required for SARIF upload
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0   # required for scanning full git history
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
@@ -48,6 +48,12 @@ jobs:
         with:
           config: "p/javascript"
           generateSarif: true
+          sarifFile: semgrep.sarif   # IMPORTANT: explicit output file
+
+      - name: Verify SARIF file
+        run: |
+          ls -la
+          ls -la semgrep.sarif
 
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@v4
