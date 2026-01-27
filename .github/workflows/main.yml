@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write   
 
 concurrency:
   group: pr-${{ github.ref }}
@@ -23,7 +24,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run tests
+      - name: Run tests and lint
         run: |
           echo "Running unit tests"
           echo "Running lint checks"
@@ -31,20 +32,46 @@ jobs:
       - name: Run security scan (SARIF)
         run: |
           mkdir -p reports
-          echo "{
-            \"runs\": [{
-              \"results\": [
-                { \"level\": \"warning\", \"message\": {\"text\": \"Medium issue\"} }
-              ]
-            }]
-          }" > reports/security.sarif
+          cat <<EOF > reports/security.sarif
+          {
+            "version": "2.1.0",
+            "\$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Demo Security Scanner",
+                    "informationUri": "https://example.com",
+                    "rules": [
+                      {
+                        "id": "DEMO001",
+                        "name": "Demo Medium Issue",
+                        "shortDescription": {
+                          "text": "This is a demo medium severity issue"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "DEMO001",
+                    "level": "warning",
+                    "message": {
+                      "text": "Medium issue detected"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
 
       - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: reports/security.sarif
-
-    
+          
       - name: Enforce severity policy
         run: |
           ERRORS=$(jq '.runs[].results[] | select(.level=="error")' reports/security.sarif | wc -l)
