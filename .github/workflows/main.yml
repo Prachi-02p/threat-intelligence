@@ -1,4 +1,4 @@
-name: pr-quality-security
+name: CI Security Pipeline
 
 on:
   pull_request:
@@ -11,85 +11,72 @@ permissions:
   security-events: write
 
 concurrency:
-  group: pr-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  pr-checks:
-    name: PR Quality & Security Checks
+  gitleaks:
+    name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --log-opts="--all"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  semgrep:
+    name: Semgrep Code Scan (SARIF)
+    runs-on: ubuntu-latest
+    needs: gitleaks
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: "p/javascript"
+          generateSarif: true
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+
+  dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    needs: semgrep
     timeout-minutes: 20
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run tests and lint
-        run: |
-          echo "Running unit tests"
-          echo "Running lint checks"
-
-      - name: Generate SARIF report
-        run: |
-          mkdir -p reports
-          cat <<EOF > reports/security.sarif
-          {
-            "version": "2.1.0",
-            "\$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "runs": [
-              {
-                "tool": {
-                  "driver": {
-                    "name": "Demo Security Scanner",
-                    "informationUri": "https://example.com",
-                    "rules": [
-                      {
-                        "id": "MEDIUM001",
-                        "name": "Demo Medium Issue",
-                        "shortDescription": {
-                          "text": "Demo medium severity issue"
-                        }
-                      }
-                    ]
-                  }
-                },
-                "results": [
-                  {
-                    "ruleId": "MEDIUM001",
-                    "level": "warning",
-                    "message": {
-                      "text": "This is a medium severity issue"
-                    },
-                    "locations": [
-                      {
-                        "physicalLocation": {
-                          "artifactLocation": {
-                            "uri": "README.md"
-                          },
-                          "region": {
-                            "startLine": 1
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
-
-      - name: Upload SARIF report
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
         with:
-          sarif_file: reports/security.sarif
+          project: "Threat-Intelligence"
+          path: "."
+          format: "HTML"
+          out: "dependency-check-report"
+          args: >
+            --enableExperimental
+            --failOnCVSS 7
 
-      - name: Enforce severity policy
-        run: |
-          ERRORS=$(jq '.runs[].results[] | select(.level=="error")' reports/security.sarif | wc -l)
-          if [ "$ERRORS" -gt 0 ]; then
-            echo "High or Critical issues found. Failing pipeline."
-            exit 1
-          else
-            echo "No high or critical issues. Medium issues are warnings only."
-          fi
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: dependency-check-report
