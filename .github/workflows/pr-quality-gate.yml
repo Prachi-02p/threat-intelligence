@@ -1,40 +1,25 @@
 name: PR Feature → Develop (Quality & Security Gate)
 
-# -------------------------------------------------
-# WHEN this pipeline runs
-# -------------------------------------------------
 on:
   pull_request:
     branches:
       - develop
-    # optional but recommended:
-    # ensures it runs only when source is feature/*
     paths-ignore:
       - docs/**
       - README.md
 
-# -------------------------------------------------
-# Minimal permissions (security best practice)
-# -------------------------------------------------
 permissions:
   contents: read
-  security-events: write   # required for SARIF uploads
+  security-events: write
 
-# -------------------------------------------------
-# Concurrency
-# Cancel old runs when new commits are pushed
-# -------------------------------------------------
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-# -------------------------------------------------
-# JOBS
-# -------------------------------------------------
 jobs:
 
   # =================================================
-  # 1️⃣ CHECKOUT & BASIC VALIDATION
+  # 1️⃣ VALIDATE SOURCE BRANCH
   # =================================================
   validate:
     name: Validate PR Metadata
@@ -51,7 +36,7 @@ jobs:
           fi
 
   # =================================================
-  # 2️⃣ SECRET SCANNING (GITLEAKS)
+  # 2️⃣ SECRET SCANNING
   # =================================================
   gitleaks:
     name: Secret Scan (Gitleaks)
@@ -60,20 +45,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout full history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required for git history scan
+          fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v2
         with:
           args: detect --source . --log-opts="--all"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # =================================================
-  # 3️⃣ STATIC CODE ANALYSIS (SEMGREP)
+  # 3️⃣ STATIC CODE ANALYSIS
   # =================================================
   semgrep:
     name: Static Code Analysis (Semgrep)
@@ -82,28 +65,24 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Semgrep
-        run: |
+      - run: |
           python3 -m pip install --upgrade pip
           pip install semgrep
 
-      - name: Run Semgrep (SARIF output)
-        run: |
+      - run: |
           semgrep scan \
             --config p/javascript \
             --sarif \
             --output semgrep.sarif
 
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+      - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
 
   # =================================================
-  # 4️⃣ DEPENDENCY VULNERABILITY SCAN (OWASP)
+  # 4️⃣ DEPENDENCY VULNERABILITY SCAN
   # =================================================
   dependency-check:
     name: Dependency Vulnerability Scan
@@ -112,22 +91,19 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
+      - uses: dependency-check/Dependency-Check_Action@main
         with:
           project: "feature-pr-scan"
-          path: "."
+          path: "threat-intelligence"
           format: "HTML"
           out: "dependency-check-report"
           args: >
             --enableExperimental
             --failOnCVSS 7
 
-      - name: Upload Dependency Report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
           path: dependency-check-report
@@ -142,19 +118,22 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
+          cache-dependency-path: threat-intelligence/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: threat-intelligence
 
       - name: Run unit tests
         run: npm test
+        working-directory: threat-intelligence
 
       - name: Build application
         run: npm run build
+        working-directory: threat-intelligence

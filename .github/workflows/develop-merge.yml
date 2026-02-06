@@ -1,9 +1,8 @@
 name: Develop Merge Pipeline
 
 # -------------------------------------------------
-# WHEN this pipeline runs
+# Trigger: AFTER merge into develop
 # -------------------------------------------------
-# This triggers ONLY after code is merged into develop
 on:
   push:
     branches:
@@ -11,14 +10,12 @@ on:
 
 # -------------------------------------------------
 # Minimal permissions
-# Merge pipeline should not need write access
 # -------------------------------------------------
 permissions:
   contents: read
 
 # -------------------------------------------------
-# Concurrency
-# Only ONE deployment to dev at a time
+# Prevent parallel dev deployments
 # -------------------------------------------------
 concurrency:
   group: develop-environment
@@ -42,28 +39,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
+          cache-dependency-path: threat-intelligence/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        working-directory: threat-intelligence
 
       - name: Build application
         run: npm run build
+        working-directory: threat-intelligence
 
-      - name: Commit package-lock.json
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add package-lock.json
-          git commit -m "chore: add package-lock.json"
-          git push
-
-
-      # Build once, reuse everywhere
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: dev-build
-          path: dist/
+          path: threat-intelligence/dist/
 
   # =================================================
   # 2️⃣ DEPLOY TO DEV ENVIRONMENT
@@ -85,14 +76,13 @@ jobs:
           path: dist/
 
       - name: Deploy application
-        run: |
-          ./scripts/deploy-dev.sh
+        run: ./scripts/deploy-dev.sh
         env:
           DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
           DEV_DB_URL: ${{ secrets.DEV_DB_URL }}
 
   # =================================================
-  # 3️⃣ SMOKE TESTS (FAST CONFIDENCE)
+  # 3️⃣ SMOKE TESTS
   # =================================================
   smoke-tests:
     name: Smoke Tests
@@ -101,8 +91,12 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Run smoke tests
         run: npm run test:smoke
+        working-directory: threat-intelligence
 
   # =================================================
   # 4️⃣ END-TO-END TESTS
@@ -114,11 +108,15 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Run E2E tests
         run: npm run test:e2e
+        working-directory: threat-intelligence
 
   # =================================================
-  # 5️⃣ NOTIFY TEAM (ALWAYS RUN)
+  # 5️⃣ NOTIFY TEAM
   # =================================================
   notify:
     name: Notify Team
@@ -128,5 +126,4 @@ jobs:
 
     steps:
       - name: Deployment status
-        run: |
-          echo "Develop merge pipeline completed"
+        run: echo "Develop merge pipeline completed"
