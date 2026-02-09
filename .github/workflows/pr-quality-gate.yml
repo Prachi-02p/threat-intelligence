@@ -1,4 +1,4 @@
-name: PR Feature → Develop (Quality & Security Gate)
+name: PR Feature to Develop (Quality and Security Gate)
 
 on:
   pull_request:
@@ -17,123 +17,86 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
-  # =================================================
-  # 1️⃣ VALIDATE SOURCE BRANCH
-  # =================================================
   validate:
-    name: Validate PR Metadata
-    runs-on: ubuntu-latest
+    name: Validate PR Source Branch
+    runs-on: ubuntu-22.04
     timeout-minutes: 5
-
     steps:
-      - name: Ensure PR is from feature branch
-        run: |
+      - run: |
           echo "Source branch: ${{ github.head_ref }}"
           if [[ ! "${{ github.head_ref }}" =~ ^feature/ ]]; then
-            echo "❌ PR must come from feature/* branch"
+            echo "PR must come from feature/* branch"
             exit 1
           fi
 
-  # =================================================
-  # 2️⃣ SECRET SCANNING
-  # =================================================
   gitleaks:
-    name: Secret Scan (Gitleaks)
-    runs-on: ubuntu-latest
+    name: Secret Scanning
+    runs-on: ubuntu-22.04
     needs: validate
     timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --source . --log-opts="--all"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # =================================================
-  # 3️⃣ STATIC CODE ANALYSIS
-  # =================================================
   semgrep:
-    name: Static Code Analysis (Semgrep)
-    runs-on: ubuntu-latest
+    name: Static Code Analysis
+    runs-on: ubuntu-22.04
     needs: gitleaks
     timeout-minutes: 15
-
     steps:
       - uses: actions/checkout@v4
-
       - run: |
           python3 -m pip install --upgrade pip
           pip install semgrep
-
       - run: |
           semgrep scan \
             --config p/javascript \
             --sarif \
             --output semgrep.sarif
-
       - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
 
-  # =================================================
-  # 4️⃣ DEPENDENCY VULNERABILITY SCAN
-  # =================================================
   dependency-check:
     name: Dependency Vulnerability Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: semgrep
     timeout-minutes: 20
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: "feature-pr-scan"
-          path: "threat-intelligence"
-          format: "HTML"
-          out: "dependency-check-report"
+          project: threat-intelligence-frontend
+          path: frontend
+          format: HTML
+          out: dependency-check-report
           args: >
             --enableExperimental
             --failOnCVSS 7
-
       - uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
           path: dependency-check-report
 
-  # =================================================
-  # 5️⃣ BUILD & UNIT TESTS
-  # =================================================
   build-and-test:
-    name: Build & Unit Tests
-    runs-on: ubuntu-latest
+    name: Build and Unit Tests
+    runs-on: ubuntu-22.04
     needs: dependency-check
     timeout-minutes: 15
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: threat-intelligence/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: threat-intelligence
-
-      - name: Run unit tests
-        run: npm test
-        working-directory: threat-intelligence
-
-      - name: Build application
-        run: npm run build
-        working-directory: threat-intelligence
+          node-version: 18.19.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test -- --watch=false
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
