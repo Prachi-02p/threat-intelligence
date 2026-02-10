@@ -23,21 +23,23 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # -------------------------------
+      # ------------------------------------------------
       # Branch discipline
-      # -------------------------------
+      # ------------------------------------------------
       - name: Validate source branch
         run: |
+          echo "PR source: ${{ github.head_ref }}"
           if [[ ! "${{ github.head_ref }}" =~ ^feature/ ]]; then
             echo "❌ Only feature/* branches can open PRs to develop"
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # ===============================
-      # FRONTEND CHECKS
-      # ===============================
+      # =================================================
+      # FRONTEND
+      # =================================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -45,7 +47,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Frontend – Install deps
+      - name: Frontend – Install dependencies
         run: npm ci
         working-directory: frontend
 
@@ -53,19 +55,26 @@ jobs:
         run: npm test -- --watch=false
         working-directory: frontend
 
-      - name: Frontend – Build validation (PR-safe)
+      - name: Frontend – Build artifact (PR-safe)
         run: CI=false npm run build
         working-directory: frontend
 
-      # ===============================
-      # BACKEND CHECKS
-      # ===============================
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-frontend-build-${{ github.event.pull_request.number }}
+          path: frontend/build/
+          retention-days: 3
+
+      # =================================================
+      # BACKEND
+      # =================================================
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
-      - name: Backend – Install deps
+      - name: Backend – Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest
@@ -76,5 +85,18 @@ jobs:
         run: python -m pytest || true
         working-directory: backend
 
+      - name: Package backend source
+        run: |
+          mkdir -p backend-artifact
+          rsync -av backend/ backend-artifact/ \
+            --exclude __pycache__ \
+            --exclude .pytest_cache \
+            --exclude .venv
+        working-directory: .
 
-
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-backend-src-${{ github.event.pull_request.number }}
+          path: backend-artifact/
+          retention-days: 3
