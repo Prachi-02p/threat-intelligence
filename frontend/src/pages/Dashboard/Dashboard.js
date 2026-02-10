@@ -1,6 +1,6 @@
 // frontend/src/pages/Dashboard/Dashboard.js
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 import SecurityStatus from "../../components/SecurityStatus";
 import { scanDomain } from "../../services/api";
 import { validateDomain, sanitizeInput, getCsrfToken } from "../../utils/security";
