@@ -1,6 +1,6 @@
 // frontend/src/pages/Report/Report.js
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 import { 
   getReports, 
   generateReport, 
