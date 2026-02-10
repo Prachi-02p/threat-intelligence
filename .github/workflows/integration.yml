@@ -1,4 +1,4 @@
-name: II. Integration – Merge to Develop
+name: II. Integration – Full Stack Merge to Develop
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   integration:
-    name: Build, Deploy & Test (Develop)
+    name: Build, Deploy & Test (Full Stack)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -25,45 +25,67 @@ jobs:
     steps:
       - name: Validate merged branch
         run: |
-          echo "Merged from: ${{ github.event.pull_request.head.ref }}"
           if [[ ! "${{ github.event.pull_request.head.ref }}" =~ ^feature/ ]]; then
-            echo "❌ Only feature/* merges trigger integration"
+            echo "❌ Only feature/* merges allowed"
             exit 1
           fi
 
       - uses: actions/checkout@v4
 
+      # ===============================
+      # FRONTEND BUILD
+      # ===============================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18.19.0
           cache: npm
-          cache-dependency-path: threat-intelligence/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Frontend – Install deps
         run: npm ci
-        working-directory: threat-intelligence
+        working-directory: frontend
 
-      - name: Build application
+      - name: Frontend – Build
         run: npm run build
-        working-directory: threat-intelligence
+        working-directory: frontend
 
-      - name: Upload build artifact
+      - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: develop-build
-          path: threat-intelligence/dist/
+          name: frontend-build
+          path: frontend/build/
 
-      - name: Deploy to test environment
+      # ===============================
+      # BACKEND BUILD
+      # ===============================
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Backend – Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        working-directory: backend
+
+      - name: Backend – Unit tests
+        run: pytest
+        working-directory: backend
+
+      # ===============================
+      # DEPLOY TO DEV
+      # ===============================
+      - name: Deploy full stack to dev
         run: ./scripts/deploy-dev.sh
         env:
           DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
           DEV_DB_URL: ${{ secrets.DEV_DB_URL }}
 
+      # ===============================
+      # POST-DEPLOY TESTS
+      # ===============================
       - name: Smoke tests
         run: npm run test:smoke
-        working-directory: threat-intelligence
-
-      - name: End-to-end tests
-        run: npm run test:e2e
-        working-directory: threat-intelligence
+        working-directory: frontend

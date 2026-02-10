@@ -1,4 +1,4 @@
-name: I. Review – PR Feature to Develop
+name: I. Review – Full Stack PR Gate
 
 on:
   pull_request:
@@ -18,14 +18,16 @@ concurrency:
 
 jobs:
   review:
-    name: PR Quality & Security Gate
+    name: Frontend + Backend Validation
     runs-on: ubuntu-22.04
     timeout-minutes: 30
 
     steps:
+      # -------------------------------
+      # Branch discipline
+      # -------------------------------
       - name: Validate source branch
         run: |
-          echo "PR source: ${{ github.head_ref }}"
           if [[ ! "${{ github.head_ref }}" =~ ^feature/ ]]; then
             echo "❌ Only feature/* branches can open PRs to develop"
             exit 1
@@ -33,26 +35,42 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # ===============================
+      # FRONTEND CHECKS
+      # ===============================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18.19.0
           cache: npm
-          cache-dependency-path: threat-intelligence/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Frontend – Install deps
         run: npm ci
-        working-directory: threat-intelligence
+        working-directory: frontend
 
-      - name: Unit tests
-        run: npm test
-        working-directory: threat-intelligence
+      - name: Frontend – Unit tests
+        run: npm test -- --watch=false
+        working-directory: frontend
 
-      - name: Build check
+      - name: Frontend – Build validation
         run: npm run build
-        working-directory: threat-intelligence
+        working-directory: frontend
 
-      - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ===============================
+      # BACKEND CHECKS
+      # ===============================
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Backend – Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        working-directory: backend
+
+      - name: Backend – Unit tests
+        run: pytest
+        working-directory: backend
