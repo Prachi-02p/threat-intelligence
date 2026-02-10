@@ -1,6 +1,6 @@
 // frontend/src/pages/Report/Report.js
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 import { 
   getReports, 
   generateReport, 
@@ -10,7 +10,6 @@ import {
 import { 
   sanitizeInput, 
   validateDateRange,
-  escapeHtml,
   getCsrfToken 
 } from "../../utils/security";
 import ReportFilters from "./components/ReportFilters";
@@ -51,7 +50,7 @@ const Report = () => {
   useEffect(() => {
     initializeReports();
     return cleanup;
-  }, []);
+  }, [initializeReports]);
 
   const initializeReports = async () => {
     try {
