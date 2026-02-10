@@ -69,8 +69,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
         working-directory: backend
 
       - name: Backend – Unit tests
         run: pytest
         working-directory: backend
+
