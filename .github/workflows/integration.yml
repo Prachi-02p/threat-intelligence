@@ -1,4 +1,4 @@
-name: II. Integration – Merge to Develop
+name: II. Integration – Merge to Develop (Artifact Deploy)
 
 on:
   pull_request:
@@ -7,25 +7,28 @@ on:
 
 permissions:
   contents: read
-  actions: read   # REQUIRED to read workflow runs
+  actions: read
 
 concurrency:
   group: develop-integration
   cancel-in-progress: true
 
 jobs:
+# =================================================
+# 1️⃣ INTEGRATION & DEPLOY
+# =================================================
   integration:
     name: Deploy & Validate (Develop)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
-    # Only run when PR is merged
+    # Run ONLY if PR was merged
     if: github.event.pull_request.merged == true
 
     steps:
-      # ------------------------------------------------
-      # Guardrail – feature/* only
-      # ------------------------------------------------
+# -------------------------------------------------
+# Guardrail
+# -------------------------------------------------
       - name: Validate merged branch
         run: |
           echo "Merged from: ${{ github.event.pull_request.head.ref }}"
@@ -34,32 +37,33 @@ jobs:
             exit 1
           fi
 
-      # ------------------------------------------------
-      # Checkout develop (scripts only)
-      # ------------------------------------------------
-      - uses: actions/checkout@v4
+# -------------------------------------------------
+# Checkout develop (infra + scripts only)
+# -------------------------------------------------
+      - name: Checkout develop
+        uses: actions/checkout@v4
 
-      # ------------------------------------------------
-      # Setup GitHub CLI
-      # ------------------------------------------------
-      - name: Setup GitHub CLI
+# -------------------------------------------------
+# Setup GitHub CLI (artifact access)
+# -------------------------------------------------
+      - name: Install GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
 
-      - name: Authenticate gh
+      - name: Authenticate GitHub CLI
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-      # ------------------------------------------------
-      # Find PR workflow run ID
-      # ------------------------------------------------
+# -------------------------------------------------
+# Locate successful PR pipeline run
+# -------------------------------------------------
       - name: Get PR workflow run ID
         id: pr_run
         run: |
           RUN_ID=$(gh run list \
             --repo ${{ github.repository }} \
             --workflow "I. Review – Full Stack PR Gate (Quality & Security)" \
-            --json databaseId,event,headBranch,status,conclusion \
+            --json databaseId,event,conclusion \
             --jq '.[] | select(.event=="pull_request" and .conclusion=="success") | .databaseId' \
             | head -n 1)
 
@@ -70,9 +74,9 @@ jobs:
 
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
 
-      # ------------------------------------------------
-      # Download FRONTEND artifact
-      # ------------------------------------------------
+# -------------------------------------------------
+# Download FRONTEND artifact
+# -------------------------------------------------
       - name: Download frontend artifact
         run: |
           gh run download ${{ steps.pr_run.outputs.run_id }} \
@@ -80,9 +84,9 @@ jobs:
             --name pr-frontend-build-${{ github.event.pull_request.number }} \
             --dir dist/frontend
 
-      # ------------------------------------------------
-      # Download BACKEND artifact
-      # ------------------------------------------------
+# -------------------------------------------------
+# Download BACKEND artifact
+# -------------------------------------------------
       - name: Download backend artifact
         run: |
           gh run download ${{ steps.pr_run.outputs.run_id }} \
@@ -90,15 +94,26 @@ jobs:
             --name pr-backend-src-${{ github.event.pull_request.number }} \
             --dir dist/backend
 
-      # ------------------------------------------------
-      # Deploy (artifact-driven)
-      # ------------------------------------------------
-      - name: Deploy to develop environment
-        run: ./scripts/deploy-dev.sh
+# -------------------------------------------------
+# Deploy to Linux server (artifact-driven)
+# -------------------------------------------------
+      - name: Deploy to develop server
+        run: |
+          chmod +x scripts/deploy-dev.sh
+          bash scripts/deploy-dev.sh
         env:
           FRONTEND_PATH: dist/frontend
           BACKEND_PATH: dist/backend
-          DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
-          DEV_DB_URL: ${{ secrets.DEV_DB_URL }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_PATH: ${{ secrets.SERVER_PATH }}
 
-      
+# -------------------------------------------------
+# Post-deploy health validation
+# -------------------------------------------------
+      - name: Health check
+        run: |
+          curl --fail --retry 5 --retry-delay 5 \
+          http://${{ secrets.SERVER_IP }}:8000/health
