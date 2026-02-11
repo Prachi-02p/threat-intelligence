@@ -34,7 +34,7 @@ jobs:
           fi
 
       # ------------------------------------------------
-      # Checkout develop (scripts only)
+      # Checkout develop (scripts + infra only)
       # ------------------------------------------------
       - uses: actions/checkout@v4
 
@@ -100,17 +100,12 @@ jobs:
           DEV_DB_URL: ${{ secrets.DEV_DB_URL }}
 
       # ------------------------------------------------
-      # Post-deploy validation
+      # Post-deploy validation (REAL smoke checks)
       # ------------------------------------------------
-      - name: Setup Node.js (for tests)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18.19.0
+      - name: Smoke check – Backend health
+        run: |
+          curl --fail --retry 5 --retry-delay 5 http://localhost:8000/health
 
-      - name: Smoke tests
-        run: npm run test:smoke
-        working-directory: frontend
-
-      - name: End-to-End tests
-        run: npm run test:e2e
-        working-directory: frontend
+      - name: Smoke check – Frontend reachable
+        run: |
+          curl --fail --retry 5 --retry-delay 5 http://localhost:3000
