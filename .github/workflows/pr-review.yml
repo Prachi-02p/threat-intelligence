@@ -15,15 +15,16 @@ concurrency:
   group: pr-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# =================================================
+# 1️⃣ GUARDRAILS
+# =================================================
 jobs:
-  review:
+  guardrails:
+    name: Guardrails – Branch Discipline
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 5
 
     steps:
-      # ------------------------------------------------
-      # Branch discipline
-      # ------------------------------------------------
       - name: Validate source branch
         run: |
           echo "PR source: ${{ github.head_ref }}"
@@ -32,33 +33,34 @@ jobs:
             exit 1
           fi
 
-      # ------------------------------------------------
-      # Checkout full history (required for scanners)
-      # ------------------------------------------------
+# =================================================
+# 2️⃣ SECURITY & SAST
+# =================================================
+  security:
+    name: Security – Secrets, SAST, Dependencies
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    needs: guardrails
+
+    steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # =================================================
-      # SECRET SCANNING
-      # =================================================
+      # ---------- Secrets ----------
       - name: Secret Scan – TruffleHog
         uses: trufflesecurity/trufflehog@main
         with:
           scan-path: .
           extra-args: --no-update
 
-      # =================================================
-      # STATIC CODE ANALYSIS – Semgrep
-      # =================================================
+      # ---------- Semgrep ----------
       - name: Semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
           config: p/ci
 
-      # =================================================
-      # CODEQL – Deep Static Analysis
-      # =================================================
+      # ---------- CodeQL ----------
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -70,9 +72,7 @@ jobs:
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v3
 
-      # =================================================
-      # DEPENDENCY VULNERABILITY – OWASP
-      # =================================================
+      # ---------- OWASP ----------
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -82,6 +82,7 @@ jobs:
           out: dependency-check-report
           args: >
             --failOnCVSS 7
+            --suppression dependency-check-suppressions.xml
 
       - name: Upload OWASP report
         uses: actions/upload-artifact@v4
@@ -90,9 +91,18 @@ jobs:
           path: dependency-check-report/
           retention-days: 5
 
-      # =================================================
-      # FRONTEND – TEST + BUILD
-      # =================================================
+# =================================================
+# 3️⃣ FRONTEND
+# =================================================
+  frontend:
+    name: Frontend – Test & Build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: security
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -100,15 +110,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Frontend – Install dependencies
+      - name: Install dependencies
         run: npm ci
         working-directory: frontend
 
-      - name: Frontend – Unit tests (Jest)
+      - name: Unit tests (Jest)
         run: npm test -- --watch=false
         working-directory: frontend
 
-      - name: Frontend – Build (PR-safe)
+      - name: Build (PR-safe)
         run: CI=false npm run build
         working-directory: frontend
 
@@ -119,22 +129,31 @@ jobs:
           path: frontend/build/
           retention-days: 3
 
-      # =================================================
-      # BACKEND – TEST + PACKAGE
-      # =================================================
+# =================================================
+# 4️⃣ BACKEND
+# =================================================
+  backend:
+    name: Backend – Test & Package
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: security
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
 
-      - name: Backend – Install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest
           pip install -r requirements.txt
         working-directory: backend
 
-      - name: Backend – Unit tests
+      - name: Unit tests
         run: python -m pytest || true
         working-directory: backend
 
@@ -152,3 +171,16 @@ jobs:
           name: pr-backend-src-${{ github.event.pull_request.number }}
           path: backend-artifact/
           retention-days: 3
+
+# =================================================
+# 5️⃣ FINAL CHECKPOINT
+# =================================================
+  summary:
+    name: PR Gate Summary
+    runs-on: ubuntu-22.04
+    needs: [frontend, backend]
+    if: always()
+
+    steps:
+      - name: Final status
+        run: echo "✅ PR Quality & Security Gate completed"

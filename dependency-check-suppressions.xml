@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions>
+  <suppress>
+    <notes>
+      Transitive dependency via react-scripts.
+      No direct usage. No known exploit in our context.
+    </notes>
+    <packageUrl regex="true">
+      ^pkg:npm/nth-check@.*
+    </packageUrl>
+    <cve>GHSA-rp65-9cf3-cjxr</cve>
+  </suppress>
+</suppressions>
