@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
 
-    <!-- Suppress transitive npm dependency vulnerability -->
     <suppress>
         <packageUrl>pkg:npm/nth-check@1.0.2</packageUrl>
-        <notes>
-            Transitive dependency via react-scripts.
-            Not directly used in application runtime.
-            Risk accepted for PR gate.
-        </notes>
     </suppress>
 
 </suppressions>
