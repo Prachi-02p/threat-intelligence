@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  actions: read   # REQUIRED to read workflow runs
+  actions: read
 
 concurrency:
   group: develop-integration
@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
-    # Only run when PR is merged
     if: github.event.pull_request.merged == true
 
     steps:
@@ -51,7 +50,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
       # ------------------------------------------------
-      # Find PR workflow run ID
+      # Get latest SUCCESSFUL PR workflow run
       # ------------------------------------------------
       - name: Get PR workflow run ID
         id: pr_run
@@ -59,8 +58,8 @@ jobs:
           RUN_ID=$(gh run list \
             --repo ${{ github.repository }} \
             --workflow "I. Review – Full Stack PR Gate (Quality & Security)" \
-            --json databaseId,event,headBranch,status,conclusion \
-            --jq '.[] | select(.event=="pull_request" and .conclusion=="success") | .databaseId' \
+            --json databaseId,conclusion \
+            --jq '.[] | select(.conclusion=="success") | .databaseId' \
             | head -n 1)
 
           if [ -z "$RUN_ID" ]; then
@@ -71,7 +70,7 @@ jobs:
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
 
       # ------------------------------------------------
-      # Download FRONTEND artifact
+      # Download artifacts from PR pipeline
       # ------------------------------------------------
       - name: Download frontend artifact
         run: |
@@ -80,9 +79,6 @@ jobs:
             --name pr-frontend-build-${{ github.event.pull_request.number }} \
             --dir dist/frontend
 
-      # ------------------------------------------------
-      # Download BACKEND artifact
-      # ------------------------------------------------
       - name: Download backend artifact
         run: |
           gh run download ${{ steps.pr_run.outputs.run_id }} \
@@ -94,7 +90,9 @@ jobs:
       # Deploy (artifact-driven)
       # ------------------------------------------------
       - name: Deploy to develop environment
-        run: ./scripts/deploy-dev.sh
+        run: |
+          chmod +x scripts/deploy-dev.sh
+          ./scripts/deploy-dev.sh
         env:
           FRONTEND_PATH: dist/frontend
           BACKEND_PATH: dist/backend
@@ -104,6 +102,11 @@ jobs:
       # ------------------------------------------------
       # Post-deploy validation
       # ------------------------------------------------
+      - name: Setup Node.js (for tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.19.0
+
       - name: Smoke tests
         run: npm run test:smoke
         working-directory: frontend
